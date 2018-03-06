@@ -6,12 +6,17 @@ from sklearn.metrics import r2_score
 
 from Pacific_analysis.PPI import ppi_kernel
 
+'''
+Performance test of PPI_kernel and its variants against Random Forests and Linear SVM,
+using Shuffle Split and R2_score
+'''
+
 
 def test_w_shuffle_split(X, y, ppi):
     
     ppi_kernel_ = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=3)
-    svr_en_ppi = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=3, n_estimators=30, alpha_factor=4)
-    svr_en_ppi_random = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=3, n_estimators=3, alpha_factor=4)
+    svr_en_ppi = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5, n_estimators=30, alpha_factor=4)
+    svr_en_ppi_random = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5, n_estimators=3, alpha_factor=4)
 
     test_size = np.linspace(0.55, 0.15, 10)
     n_splits = 10

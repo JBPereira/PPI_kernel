@@ -1,17 +1,14 @@
-from sklearn.metrics import r2_score, explained_variance_score
-
-import pandas as pd
 import numpy as np
+from sklearn.metrics import r2_score
+from sklearn.svm import SVR
 
 from functools import reduce
 import time
 
-
-
-
-from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error as rsme
-
+'''
+PPI kernel method class. Can be operated using random or biased ensembles of regressors,
+ or a single regressor using the whole Protein-Protein Interaction Matrix
+'''
 
 class ppi_kernel():
     def __init__(self, ppi, gamma_n, gamma_diag=False, gamma_alpha=1,
@@ -68,7 +65,7 @@ class ppi_kernel():
         '''
         Takes a matrix and a power number, and outputs an array of size n with the matrix multiplied by itself
         i times, where n is power_number and i is the index of the array +1
-        :param matrix: Matrix to be exponentiated
+        :param matrix: Matrix to be multiplied by itself
         :param power_number: maximum number of times to multiply matrix by itself
         :return: array with matrix powers
         '''
@@ -141,6 +138,17 @@ class ppi_kernel():
 
     def compute_kernel(self, L_array, L_prime_array, ppi, predicting, finishing_time=False):
 
+        '''
+        Given the array of weighted protein networks (w.p.n) and the array of w.p.n to compute the
+        distance with, returns the PPI kernel
+        :param L_array: w.p.n.
+        :param L_prime_array: w.p.n. to compare L_array with
+        :param ppi: Protein-Protein Interaction Matrix
+        :param predicting: If using kernel for predicting, pass True
+        :param finishing_time: If you want to know he finishing time, pass True
+        :return: PPI Kernel
+        '''
+
         n_rows = len(L_array)
         n_cols = len(L_prime_array)
 
@@ -182,6 +190,14 @@ class ppi_kernel():
         return kernel_matrix
 
     def compute_ikernel_entry(self, L, L_prime, ppi):
+
+        '''
+        Computes the PPI kernel entry given by the inner product of the mapped graphs of two measurements
+        :param L: Protein Network with edges weighted by the protein concentrations
+        :param L_prime: Same as L, for a different measurement
+        :param ppi: Protein-Protein Interaction Matrix
+        :return: PPI Kernel entry for L and L_prime
+        '''
 
         gamma_n = np.shape(self.gamma)[0]
 
@@ -256,6 +272,13 @@ class ppi_kernel():
 
     def sample_proteins_biased(self, biased_seed):
 
+        '''
+        Starting from a random seed, samples the protein-protein interaction matrix, grouping
+        connected parts or sparse parts of the network with higher probability.
+        :param biased_seed: Seed to start from. If you want to start from random seed do not pass this argument
+        :return: sample of proteins
+        '''
+
         if biased_seed:
 
             first_protein = biased_seed
@@ -282,11 +305,26 @@ class ppi_kernel():
 
     def sample_proteins_random(self):
 
+        '''
+        Randomly sample proteins from the network
+        :return: random sample of proteins
+        '''
+
         protein_list = np.random.choice(self.n_proteins, self.n_proteins_ensemble, replace=False)
 
         return protein_list
 
     def build_kernels(self, X_train, regressors_protein_list, predicting, D_array=None, X_test=False):
+
+        '''
+        Builds the kernel SVMs for each of the proteins subgroups sampled
+        :param X_train: Training data
+        :param regressors_protein_list: List of protein subgroups
+        :param predicting: If using this method for predicting, pass True
+        :param D_array: If you are predicting, a normalizing matrix for the kernel is necessary. Pass it here
+        :param X_test: Test data, if predicting
+        :return: Array with the built regressors
+        '''
 
         n_regressors = len(regressors_protein_list)
 

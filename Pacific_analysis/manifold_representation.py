@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 
 from Pacific_analysis.PPI import ppi_kernel
 
+'''
+Represent the data using Manifold Representations
+'''
+
 
 def manifold_rep(X, y, ppi):
 
