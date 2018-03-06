@@ -14,9 +14,9 @@ using Shuffle Split and R2_score
 
 def test_w_shuffle_split(X, y, ppi):
     
-    ppi_kernel_ = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=3)
-    svr_en_ppi = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5, n_estimators=30, alpha_factor=4)
-    svr_en_ppi_random = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5, n_estimators=3, alpha_factor=4)
+    ppi_kernel_ = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=2)
+    svr_en_ppi = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=10, n_estimators=20, alpha_factor=3, n_proteins_ensemble=30)
+    svr_en_ppi_random = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5, n_estimators=3, alpha_factor=3)
 
     test_size = np.linspace(0.55, 0.15, 10)
     n_splits = 10
@@ -45,7 +45,7 @@ def test_w_shuffle_split(X, y, ppi):
 
             train_kernel, D = ppi_kernel_.compute_interaction_kernel(data=X_train, norm_kernel=True)
 
-            svr_ppi = SVR(kernel='precomputed', C=50)
+            svr_ppi = SVR(kernel='precomputed', C=20)
 
             svr_ppi.fit(train_kernel, y_train)
 
@@ -105,7 +105,7 @@ def test_w_shuffle_split(X, y, ppi):
             r2_rfr[split, t_index] = r2_rfr_
 
             print('R2_scores: ppi:{}, ppi_en:{}, '
-                  'ppi_en_rd:{}, l_svr:{}, rfr,{}'.format(r2_ppi_, r2_ppi_en_, r2_ppi_random_,
+                  'ppi_en_rd:{}, l_svr:{}, rfr:{}'.format(r2_ppi_, r2_ppi_en_, r2_ppi_random_,
                                                           r2_linear_, r2_rfr_))
 
             split = split + 1
