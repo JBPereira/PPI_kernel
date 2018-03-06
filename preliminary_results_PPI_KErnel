@@ -1,0 +1,63 @@
+REPEAT!		RSME_norm_PPI_non_norm_data 5 splits shuffle split
+		 test_size: 75%:584.2172042530171, 625%:519.8827675006294, 50%:525.3175943774795, 37.5%:543.6188132544328 25%474.8385761270566 25%:419.05977325927637, 5%:514.0738614906073
+		 
+REPEAT!		RSME_linear_SVR_non_norm_data: 5 splits shuffle split
+		 test_size: 75%:574.4159737690746, 625%:513.1430811081809, 50%:517.009421375502, 37.5%:530.8801663940457 25% 484.4810856936077 25%:399.4912612686866 5%: 403.82945446631885
+
+RSME_norm_PPI_non_norm_Xy_random_80 
+ test_size: 75%:557.7571455949982, 625%:542.7618503306562, 50%:539.5233735357973, 37.5%:549.7388212318443 25%523.4911759710205 
+ 
+ RSME_linear_SVR_non_norm_Xy_random_80:
+ test_size: 75%:566.124819723441, 625%:558.3734567574812, 50%:554.0716851587612, 37.5%:560.8008263274909 25%525.132540168276 
+
+RSME_norm_PPI_norm_Xy_random_80 
+ test_size: 75%:6.3276052219340615, 625%:6.524918140273745, 50%:7.449690872973657, 37.5%:9.049301005122254 25%6.604873882359112 
+ 
+ RSME_linear_SVR_norm_Xy_random80:
+ test_size: 75%:1.6726501192190015, 625%:1.6819979215942278, 50%:1.4290024290305994, 37.5%:1.3436536507479235 25%1.1889750292918009 
+
+RSME_norm_PPI_norm_X_non_norm_y_random_80 
+ test_size: 75%:557.9330433427172, 625%:543.547388251214, 50%:540.9729639122329, 37.5%:550.0251318842937 25%521.3438951098716 
+ 
+ RSME_linear_SVR_norm_X_nnorm_y_random80:
+ test_size: 75%:555.8775912669679, 625%:552.1998230905073, 50%:543.9035007542437, 37.5%:549.9876310115934 25%519.6474735219355 
+
+RSME_norm_PPI_norm_X_non_norm_y_random_80 
+ test_size: 75%:558.4614937551086, 625%:543.2543386882159, 50%:541.6639357309259, 37.5%:550.9138120257622 25%522.830614106513 
+ 
+ RSME_RBF_SVR_norm_X_nnorm_y_random80:
+ test_size: 75%:558.299399353447, 625%:543.2881139077725, 50%:539.559633513225, 37.5%:549.0664627558975 25%521.4288797582617 
+
+RSME_norm_PPI_non_norm_Xy_random_80 
+ test_size: 75%:558.7466199799237, 625%:545.4324192625867, 50%:543.5674418803227, 37.5%:554.6922812645137 25%527.1081339981899 
+ 
+ RSME_RBF_SVR_nonnorm_Xy_random80:
+ test_size: 75%:558.4977481163656, 625%:543.8433095762265, 50%:539.7443083511778, 37.5%:549.3453266938775 25%521.7434586002199
+
+
+test_ex = data[0][65]
+train_ex = data[1][33]
+
+L = np.outer(test_ex, test_ex)
+L_prime = np.outer(train_ex, train_ex)
+
+test_k = PPI_kernel.compute_ikernel_entry(L, L)
+train_k = PPI_kernel.compute_ikernel_entry(L_prime, L_prime)
+t_t_k = PPI_kernel.compute_ikernel_entry(L, L_prime)
+
+D_test = D_prime[65,65]
+D_train = self.D[33,33]
+
+t_t_real_k = kernel_matrix[65,33]
+
+t_t_norm_k = K_norm[65,33]
+real_norm_k = D_test * t_t_k * D_train
+
+print('test_k:{} \n train_K:{} \n t_t_k: {} \n D_test:{}'
+      '\n D_train:{} \n t_t_real_k:{}, \n t_t_norm_k:{}'
+      '\n real_norm_k:{}'.format(test_k,
+                                                             train_k, t_t_k,
+                                                             D_test, D_train,
+                                                             t_t_real_k,
+                                                             t_t_norm_k,
+                                 real_norm_k))

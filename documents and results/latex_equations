@@ -1,0 +1,15 @@
+ \kappa_{n}(G, G^{'}) = \sum^{n}_{i,j}[ \gamma]_{i,j} \left \langle  \left [ A \circ L\right ]^{i} , \left [ A\circ L' \right ]^{j} \right \rangle_{F}, \\
+ A_{_{P\times P}} = PPI, \\
+ L_{_{P\times P}} = p_{_{P\times1}}p^{T}_{_{1\times P}}, \\
+ L' = {p'}_{_{P\times1}}{p'}^{T}_{_{1\times P}}, \\
+ c(x)  = \sum_{i=1}^{P} PPI_{xi}\\
+ C =  \begin{bmatrix}c(1)\\c(2)\\\vdots\\c(P)\end{bmatrix} \\
+ TP_{ij} =  \frac{\alpha_{i}^{\left [PPI- | C - C^{T}  | \right]_{ij}}}{\sum_{j=1}^P \alpha_{i}^{\left [PPI- | C - C^{T}  |\right ]_{ij}}}, \alpha_i = \kappa ^{\frac{1}{2\sigma_{i} (\delta)}},
+ \delta = PPI - |C - C^{T}|\\
+ P(T, N_p)_i = \frac{1}{N} + \frac{1}{N}\sum_{i=1}^{N_p-1}
+ \sum_{j=1}^{r(i)} T[c(i, i), p] \prod_{k=1}^{i} T[c(i, j, k), c(i, j, k+1)]
+ \\
+ c(i, j, k) =  \begin{pmatrix}S(N)  \setminus  {p}\\ i\end{pmatrix}_{j, k}  \\
+ r(i) =  \begin{pmatrix} N -1 \\ i\end{pmatrix}_{j, k}
+
+
