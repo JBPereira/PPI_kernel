@@ -14,7 +14,7 @@ using Shuffle Split and R2_score
 
 def test_w_shuffle_split(X, y, ppi):
     
-    ppi_kernel_ = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=2)
+    ppi_kernel_ = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5)
     svr_en_ppi = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=10, n_estimators=20, alpha_factor=3, n_proteins_ensemble=30)
     svr_en_ppi_random = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5, n_estimators=3, alpha_factor=3)
 
@@ -51,7 +51,7 @@ def test_w_shuffle_split(X, y, ppi):
 
             svm_predict_data = [X_test, X_train]
 
-            predict_kernel,_ = ppi_kernel_.compute_interaction_kernel(data=svm_predict_data, predicting=True,
+            predict_kernel, _ = ppi_kernel_.compute_interaction_kernel(data=svm_predict_data, predicting=True,
                                                                    norm_kernel=True, D=D)
 
             y_pred_ppi = svr_ppi.predict(predict_kernel)

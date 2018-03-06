@@ -100,6 +100,19 @@ train_size = 0.6
 # quick_test(X, y, ppi, train_size=train_size)
 
 '''
+Test PPI_kernel Hyperparameters
+'''
+
+from Pacific_analysis.test_PPI_hyperpars import test_ppi_hyper
+
+average_r2_ppi, gamma_n, gamma_alpha, C_array = test_ppi_hyper(X, y, ppi)
+
+np.save('r2_ppi_hyper', average_r2_ppi)
+np.save('r2_ppi_hyper_gamma_n', gamma_n)
+np.save('r2_ppi_hyper_gamma_alpha', gamma_alpha)
+np.save('r2_ppi_hyper_C_array', C_array)
+
+'''
 Full Test with shuffle_split comparing the same as above
 '''
 

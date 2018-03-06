@@ -490,7 +490,7 @@ class ppi_kernel():
 
         self.X_train = X_training
 
-        self.n_estimators = len(final_selection)
+        self.n_final_estimators = len(final_selection)
 
         return r2_scores[final_selection]
 
@@ -520,16 +520,17 @@ class ppi_kernel():
             self.regressors = regressors
             self.regressors_protein_list = regressors_protein_list
             self.X_train = X_training
+            self.n_final_estimators = self.n_estimators
 
         else:
 
             r2_score_array = self.select_biased_regressors(X_training=X_training, y_training=y_training,
                                                            X_validation=X_validation, y_validation=y_validation)
 
-        r2_score_array_ = np.power(self.n_estimators, r2_score_array)
-        r2_score_array_ /= np.sum(r2_score_array_)
+        # r2_score_array_ = np.power(self.n_estimators, r2_score_array)
+        r2_score_array /= np.sum(r2_score_array)
 
-        self.ensemble_weights = r2_score_array_
+        self.ensemble_weights = r2_score_array
 
     def ensemble_predict(self, X_test):
 
@@ -537,7 +538,7 @@ class ppi_kernel():
                                                regressors_protein_list=self.regressors_protein_list,
                                                predicting=True, X_test=X_test, D_array=self.D_array)
 
-        predictions = np.array([self.regressors[i].predict(regressor_kernels[i]) for i in range(self.n_estimators)])
+        predictions = np.array([self.regressors[i].predict(regressor_kernels[i]) for i in range(self.n_final_estimators)])
 
         prediction = np.sum(predictions * np.array(self.ensemble_weights)[:, np.newaxis], axis=0)
 
