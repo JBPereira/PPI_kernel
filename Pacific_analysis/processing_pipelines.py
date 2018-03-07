@@ -46,6 +46,12 @@ class NN_imputer(BaseEstimator, TransformerMixin):
 
 class DataFrameSelector(BaseEstimator, TransformerMixin):
     def __init__(self, columns_to_drop=None, drop_na_rows=False):
+
+        '''
+        :param columns_to_drop: List of columns to drop
+        :param drop_na_rows: string: 'all' drops rows that have NaNs only, 'any' drops rows that have any NaN
+        '''
+
         self.columns_to_drop = columns_to_drop
         self.drop_na_rows = drop_na_rows
 
@@ -53,13 +59,13 @@ class DataFrameSelector(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
-        X.dropna(how='all', inplace=True)  # drop rows that do not have any value
 
         if self.columns_to_drop is not None:
             X.drop(columns=self.columns_to_drop, inplace=True)
 
-        if self.drop_na_rows:
-            X.dropna(how='any', inplace=True)
+        if self.drop_na_rows is not False:
+            X.dropna(how=self.drop_na_rows, inplace=True)  # drop rows that do not have any value
+
         return X.values
 
 
@@ -104,19 +110,24 @@ def pipeline_w_norm(X, columns_to_drop):
     return pipeline.fit_transform(X)
 
 
-def pipeline_wout_norm_or_imputation(X, columns_to_drop):
+def normalize_matrix(X, method='z-score'):
+
+    return DataNormalizer(method).fit_transform(X)
+
+
+def pipeline_wout_norm_or_imputation(X, columns_to_drop, drop_na_rows=False):
 
     pipeline = Pipeline([
-    ('selector', DataFrameSelector(columns_to_drop=columns_to_drop, drop_na_rows=True)),
+    ('selector', DataFrameSelector(columns_to_drop=columns_to_drop, drop_na_rows=drop_na_rows)),
     ])
 
     return pipeline.fit_transform(X)
 
 
-def pipeline_wout_imputation(X, columns_to_drop):
+def pipeline_wout_imputation(X, columns_to_drop=False, drop_na_rows=False):
 
     pipeline = Pipeline([
-        ('selector', DataFrameSelector(columns_to_drop, drop_na_rows=True)),
+        ('selector', DataFrameSelector(columns_to_drop=columns_to_drop, drop_na_rows=drop_na_rows)),
         ('normalizer', DataNormalizer(method='z-score')),
     ])
 

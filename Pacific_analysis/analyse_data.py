@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from Pacific_analysis.processing_pipelines import pipeline_wout_norm_or_imputation,\
-    pipeline_wout_imputation
+    normalize_matrix
 
 
 '''
@@ -13,11 +13,17 @@ columns_to_drop = ['Unnamed: 3', 'Unnamed: 4']
 
 plaque_markers_data = pd.read_excel('data.xlsx')
 
-processed_X = pipeline_wout_norm_or_imputation(plaque_markers_data, columns_to_drop=columns_to_drop)
+processed_X = pipeline_wout_norm_or_imputation(plaque_markers_data, columns_to_drop=columns_to_drop, drop_na_rows='any')
 
-plaque_markers_data = pd.read_excel('data.xlsx')
+y = processed_X[:, 2]
 
-processed_norm_X = pipeline_wout_imputation(plaque_markers_data, columns_to_drop=columns_to_drop)
+normal_values = np.argwhere(y < 300).flatten()
+
+processed_X = processed_X[normal_values, :]
+
+processed_X[:, 4:] = 2 ** processed_X[:, 4:]
+
+processed_norm_X = normalize_matrix(processed_X, method='z-score')
 
 columns = np.ma.array(plaque_markers_data.columns, mask=False)
 columns.mask[3:4] = True
@@ -80,14 +86,9 @@ X = processed_X_norm_df.iloc[:, 4:].values
 
 # X = X[:, random_cols]
 
-y = processed_X[:, 1]
+y = processed_X_norm_df.iloc[:, 1].values
 
 ppi = interaction_matrix
-
-normal_values = np.argwhere(y < 500).flatten()
-X = X[normal_values, :]
-y = y[normal_values]
-
 
 '''
 Quick-Test with one split, comparing kernel_PPI, ensemble_PPI, random_ensemble_PPI, RF and linear SVM
@@ -105,12 +106,13 @@ Test PPI_kernel Hyperparameters
 
 from Pacific_analysis.test_PPI_hyperpars import test_ppi_hyper
 
-average_r2_ppi, gamma_n, gamma_alpha, C_array = test_ppi_hyper(X, y, ppi)
+average_r2_ppi, average_r2_ppi_en, gamma_n, gamma_alpha, C_array, eps_array = test_ppi_hyper(X, y, ppi)
 
 np.save('r2_ppi_hyper', average_r2_ppi)
 np.save('r2_ppi_hyper_gamma_n', gamma_n)
 np.save('r2_ppi_hyper_gamma_alpha', gamma_alpha)
 np.save('r2_ppi_hyper_C_array', C_array)
+np.save('r2_ppi_hyper_eps_array', eps_array)
 
 '''
 Full Test with shuffle_split comparing the same as above
@@ -129,8 +131,6 @@ Manifold Visualization of data + visualization using TSNE with ppi_kernel
 random_cols = np.random.choice(np.arange(0, X.shape[1]), 80)
 
 X = X[:, random_cols]
-
-y[np.argwhere(y>500)] = 500
 
 ppi = interaction_matrix.iloc[random_cols, random_cols]
 

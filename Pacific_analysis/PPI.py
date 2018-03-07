@@ -10,7 +10,9 @@ PPI kernel method class. Can be operated using random or biased ensembles of reg
  or a single regressor using the whole Protein-Protein Interaction Matrix
 '''
 
+
 class ppi_kernel():
+    
     def __init__(self, ppi, gamma_n, gamma_diag=False, gamma_alpha=1,
                  diagonal=False, plain_array=True, n_proteins_ensemble=False,
                  n_estimators=10, alpha_factor=10):
@@ -366,8 +368,8 @@ class ppi_kernel():
                                        kernels[i],
                                        y_training)
                                 for i in range(n_regressors)]
-                                for j in np.geomspace(0.01, 500, 50)]
-                               for k in np.linspace(0.01, 0.2, 10)])
+                                for j in np.geomspace(0.01, 100, 10)]
+                               for k in np.linspace(0.01, 0.2, 5)])
 
         return regressors
 
@@ -458,7 +460,7 @@ class ppi_kernel():
         ordered_scores = np.argsort(exploration_scores[selected_pioneers])
 
         repeated_seeds_index = np.tile(selected_pioneers[ordered_scores[::-1]],
-                                         n_seed_repeat)  # TODO: careful because repeat is not cycling array but repeating each element n times before the next
+                                         n_seed_repeat)
 
         remainder_seeds_index = selected_pioneers[ordered_scores[:-n_seed_remainder - 1:-1]]
 
@@ -527,8 +529,13 @@ class ppi_kernel():
             r2_score_array = self.select_biased_regressors(X_training=X_training, y_training=y_training,
                                                            X_validation=X_validation, y_validation=y_validation)
 
-        # r2_score_array_ = np.power(self.n_estimators, r2_score_array)
-        r2_score_array /= np.sum(r2_score_array)
+        min_corrected_r2 = r2_score_array - np.min(r2_score_array) + 1
+        range_r2 = np.max(min_corrected_r2) - np.min(min_corrected_r2)
+        max_min_factor_r2 = np.max(min_corrected_r2) / np.min(min_corrected_r2)
+        k = 10
+        w = (k * range_r2) ** (1/max_min_factor_r2)
+        r2_score_scaled = np.power(w, min_corrected_r2)
+        r2_score_array = r2_score_scaled / np.sum(r2_score_scaled)
 
         self.ensemble_weights = r2_score_array
 
