@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+from sklearn.feature_selection import SelectFromModel, univariate_selection
+from sklearn.linear_model import LassoCV
 
 from Pacific_analysis.processing_pipelines import pipeline_wout_norm_or_imputation,\
     normalize_matrix
@@ -21,7 +23,7 @@ normal_values = np.argwhere(y < 300).flatten()
 
 processed_X = processed_X[normal_values, :]
 
-processed_X[:, 4:] = 2 ** processed_X[:, 4:]
+# processed_X[:, 4:] = 2 ** processed_X[:, 4:]
 
 processed_norm_X = normalize_matrix(processed_X, method='z-score')
 
@@ -30,6 +32,8 @@ columns.mask[3:4] = True
 
 processed_X_df = pd.DataFrame(processed_X, columns=columns)
 processed_X_norm_df = pd.DataFrame(processed_norm_X, columns=columns)
+
+
 
 '''
 Read Protein interactions table and create the matrix
@@ -88,7 +92,16 @@ X = processed_X_norm_df.iloc[:, 4:].values
 
 y = processed_X_norm_df.iloc[:, 1].values
 
-ppi = interaction_matrix
+'''
+Protein Pre-selection using linear SVC. Comment to use whole network
+'''
+
+lasso = LassoCV().fit(X, y)
+model = SelectFromModel(lasso, prefit=True)
+X_new = model.transform(X)
+selected_features = model.get_support()
+X = X[:, selected_features]
+ppi = interaction_matrix.iloc[selected_features, selected_features]
 
 '''
 Quick-Test with one split, comparing kernel_PPI, ensemble_PPI, random_ensemble_PPI, RF and linear SVM
@@ -106,7 +119,8 @@ Test PPI_kernel Hyperparameters
 
 from Pacific_analysis.test_PPI_hyperpars import test_ppi_hyper
 
-average_r2_ppi, average_r2_ppi_en, gamma_n, gamma_alpha, C_array, eps_array = test_ppi_hyper(X, y, ppi)
+# average_r2_ppi, average_r2_ppi_en, gamma_n, gamma_alpha, C_array, eps_array = test_ppi_hyper(X, y, ppi)
+average_r2_ppi, gamma_n, gamma_alpha, C_array, eps_array = test_ppi_hyper(X, y, ppi)
 
 np.save('r2_ppi_hyper', average_r2_ppi)
 np.save('r2_ppi_hyper_gamma_n', gamma_n)
