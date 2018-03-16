@@ -1,4 +1,6 @@
 /*.xlsx #ignore any data
 /data.xlsx
 /*.ipynb
+/*.npy
+/*.jpeg
 documents and results
