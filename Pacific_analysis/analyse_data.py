@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
-from sklearn.feature_selection import SelectFromModel, univariate_selection
-from sklearn.linear_model import LassoCV
+from sklearn.feature_selection import SelectKBest, RFECV, f_regression
+from sklearn.ensemble import ExtraTreesRegressor
 
-from Pacific_analysis.processing_pipelines import pipeline_wout_norm_or_imputation,\
+from Pacific_analysis.processing_pipelines import pipeline_wout_norm_or_imputation, \
     normalize_matrix
 
 
@@ -32,8 +32,6 @@ columns.mask[3:4] = True
 
 processed_X_df = pd.DataFrame(processed_X, columns=columns)
 processed_X_norm_df = pd.DataFrame(processed_norm_X, columns=columns)
-
-
 
 '''
 Read Protein interactions table and create the matrix
@@ -96,12 +94,43 @@ y = processed_X_norm_df.iloc[:, 1].values
 Protein Pre-selection using linear SVC. Comment to use whole network
 '''
 
-lasso = LassoCV().fit(X, y)
-model = SelectFromModel(lasso, prefit=True)
-X_new = model.transform(X)
-selected_features = model.get_support()
-X = X[:, selected_features]
-ppi = interaction_matrix.iloc[selected_features, selected_features]
+### RFE with RF
+
+# n_estimators = 100
+# cv = 3
+
+# estimator = ExtraTreesRegressor(n_estimators=100, n_jobs=-1)
+# selector = RFECV(estimator, step=1, cv=3)
+# selector = selector.fit(X, y)
+# selected_features = selector.get_support()
+# np.save('selected_features_RF_{}_est_{}_cv'.format(n_estimators, cv), selected_features)
+
+
+### Select only features whose p-value is <0.05
+
+# selector = SelectKBest(f_regression, k='all').fit(X, y)
+# p_values = selector.pvalues_
+# selected_features = np.argwhere(p_values < 0.05).flatten()
+# np.save('selected_features_skb_f_reg_p<0.05', selected_features)
+#
+# print('\n\n\n SELECTED_FEATURES '
+#       'P-VALUE: \n\n')
+# for i in selected_features:
+#     print('Feature: {} P-Value: {}'.format(processed_X_norm_df.iloc[:, 4:].columns[i],
+#                                            p_values[i]))
+
+### Select k features
+
+k = 100
+selector = SelectKBest(f_regression, k=k).fit(X, y)
+selected_features = selector.get_support()
+# np.save('selected_features_skb_f_reg_{}'.format(k), selected_features)
+#
+# X = X[:, selected_features]
+#
+# ppi = interaction_matrix.iloc[selected_features, selected_features]
+
+print('\n\n\n SHAPE X: {} \n\n\n'.format(np.shape(X)))
 
 '''
 Quick-Test with one split, comparing kernel_PPI, ensemble_PPI, random_ensemble_PPI, RF and linear SVM
@@ -114,19 +143,68 @@ train_size = 0.6
 # quick_test(X, y, ppi, train_size=train_size)
 
 '''
+Plot PPI vs y_true
+'''
+
+from Pacific_analysis.plot_y_vs_pred import plot_y_vs_pred
+
+# plot_y_vs_pred(X, y, ppi)
+
+'''
+Compare PPI performance on normal dataset vs dataset with zeros substituted using a Regressor on
+low non-zero y values with added noise
+'''
+
+from Pacific_analysis.compare_zero_substitution_performance import compare_zero_substitution_performance
+
+compare_zero_substitution_performance(X, y, y)
+
+'''
 Test PPI_kernel Hyperparameters
 '''
 
-from Pacific_analysis.test_PPI_hyperpars import test_ppi_hyper
-
-# average_r2_ppi, average_r2_ppi_en, gamma_n, gamma_alpha, C_array, eps_array = test_ppi_hyper(X, y, ppi)
-average_r2_ppi, gamma_n, gamma_alpha, C_array, eps_array = test_ppi_hyper(X, y, ppi)
-
-np.save('r2_ppi_hyper', average_r2_ppi)
-np.save('r2_ppi_hyper_gamma_n', gamma_n)
-np.save('r2_ppi_hyper_gamma_alpha', gamma_alpha)
-np.save('r2_ppi_hyper_C_array', C_array)
-np.save('r2_ppi_hyper_eps_array', eps_array)
+# from Pacific_analysis.test_PPI_hyperpars import test_ppi_hyper
+# import json
+#
+# ppi_variables, ppi_en_variables, rf_variables = test_ppi_hyper(X, y, interaction_matrix, feat_elim=100)
+#
+# average_r2_ppi, average_nrmse_ppi, gamma_n, gamma_alpha, C_array, eps_array = ppi_variables
+# average_r2_ppi_en, average_nrmse_ppi_en, n_estimators, alpha_factor, n_proteins_ensemble = ppi_en_variables
+# average_r2_rf, average_nrmse_rf = rf_variables
+#
+# selected_feature_names = processed_X_norm_df.iloc[:, 4:].columns[selected_features].tolist()
+#
+# to_save = [{'feat_elim (inside split)': str(selector.get_params()),
+#             'average_r2_ppi': average_r2_ppi.tolist(),
+#             'average_nrsme_ppi': average_nrmse_ppi.tolist(),
+#             'gamma_n': gamma_n.tolist(),
+#             'gamma_alpha': gamma_alpha.tolist(),
+#             'C_array': C_array.tolist(),
+#             'eps_array': eps_array.tolist(),
+#             # 'selected_features (Inside split)': selected_feature_names,
+#             # 'selected_features_len': len(selected_feature_names)
+#             },
+#            {'feat_elim': str(selector.get_params()),
+#             'n_estimators_nrmse_selected': n_estimators,
+#             'alpha_factor': alpha_factor,
+#             'n_proteins_ensemble': n_proteins_ensemble,
+#             'average_r2_ppi_en': average_r2_ppi_en.tolist(),
+#             'average_nrmse_ppi_en': average_nrmse_ppi_en.tolist()},
+#            {'feat_elim': str(selector.get_params()),
+#             'average_r2_rf': average_r2_rf.tolist(),
+#             'average_nrmse_rf': average_nrmse_rf.tolist()}]
+#
+# import os.path
+#
+# if os.path.isfile('feat_elim_scores'):
+#     with open('feat_elim_scores', 'r') as f:
+#         file = json.load(f)
+#     file.append(to_save)
+#     with open('feat_elim_scores', 'w') as f:
+#         json.dump(file, f)
+# else:
+#     with open('feat_elim_scores', 'w') as f:
+#         json.dump(to_save, f)
 
 '''
 Full Test with shuffle_split comparing the same as above
@@ -134,8 +212,7 @@ Full Test with shuffle_split comparing the same as above
 
 from Pacific_analysis.test_w_shuffle_split import test_w_shuffle_split
 
-test_w_shuffle_split(X, y, ppi)
-
+# test_w_shuffle_split(X, y, ppi)
 
 
 '''
@@ -151,10 +228,3 @@ ppi = interaction_matrix.iloc[random_cols, random_cols]
 from Pacific_analysis.manifold_representation import manifold_rep
 
 # manifold_rep(X, y, ppi)
-
-
-
-
-
-
-

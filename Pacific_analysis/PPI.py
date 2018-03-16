@@ -1,6 +1,7 @@
 import numpy as np
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.svm import SVR
+from Pacific_analysis.utils import nrmse, select_best, m_p
 
 from functools import reduce
 import time
@@ -12,10 +13,10 @@ PPI kernel method class. Can be operated using random or biased ensembles of reg
 
 
 class ppi_kernel():
-    
+
     def __init__(self, ppi, gamma_n, gamma_diag=False, gamma_alpha=1,
                  diagonal=False, plain_array=True, n_proteins_ensemble=False,
-                 n_estimators=10, alpha_factor=10):
+                 n_estimators=10, alpha_factor=10, performance_metric='nrmse'):
 
         '''
         Class for PPI SVM regression. Can be used as single PPI SVM or ensemble of PPI SVM regressors
@@ -27,6 +28,7 @@ class ppi_kernel():
         :param n_estimators: how many regressors to use if using ensemble
         :param alpha_factor: Probability ratio desired between higher connected and lower connected nodes,
         when sampling biased for ensemble
+        :param performance_metric: Performance metric on which to evaluate ensemble regressors
         '''
 
         self.ppi = ppi
@@ -37,6 +39,7 @@ class ppi_kernel():
 
         self.T_matrix = self.compute_transition_matrix(alpha_factor)
         self.n_estimators = n_estimators
+        self.performance_metric = performance_metric
 
         if not n_proteins_ensemble:
 
@@ -50,42 +53,8 @@ class ppi_kernel():
 
             self.n_proteins_ensemble = int(n_proteins_ensemble * self.n_proteins)
 
-    @staticmethod
-    def mad(data):
-
-        flat_array = data.flatten()
-
-        n_elements = len(flat_array)
-
-        diff_array = np.subtract.outer(flat_array, flat_array)
-
-        return np.sum(np.abs(diff_array)) / (np.multiply(n_elements, (n_elements - 1)))
-
-    @staticmethod
-    def mp(matrix, power_number):
-
-        '''
-        Takes a matrix and a power number, and outputs an array of size n with the matrix multiplied by itself
-        i times, where n is power_number and i is the index of the array +1
-        :param matrix: Matrix to be multiplied by itself
-        :param power_number: maximum number of times to multiply matrix by itself
-        :return: array with matrix powers
-        '''
-
-        if power_number == 1:
-            return matrix
-        elif power_number == 0:
-            return np.abs(matrix)
-        else:
-
-            matrix_array = [matrix]
-
-            for i in range(1, power_number):
-                matrix_array.append(np.matmul(matrix_array[i - 1], matrix))
-
-        return matrix_array
-
-    def compute_interaction_kernel(self, data, D=None, ppi=[], predicting=False, finishing_time=False, norm_kernel=False):
+    def compute_interaction_kernel(self, data, D=None, ppi=[], predicting=False,
+                                   finishing_time=False, norm_kernel=False):
 
         '''
         Compute the interaction kernel. Can be used both for training and for predicting:
@@ -163,7 +132,8 @@ class ppi_kernel():
             if finishing_time:
                 start = time.time()
 
-                print('{} % complete'.format(np.float32((i * n_cols)) / np.float32(n_cols * n_rows) * 100))
+                print('{} % complete'.format(np.float32((i * n_cols))
+                                             / np.float32(n_cols * n_rows) * 100))
 
             for j in range(n_cols):
 
@@ -173,7 +143,8 @@ class ppi_kernel():
 
                 else:
 
-                    kernel_matrix[i, j] = self.compute_ikernel_entry(L_array[i], L_prime_array[j], ppi.values)
+                    kernel_matrix[i, j] = self.compute_ikernel_entry(L_array[i], L_prime_array[j],
+                                                                     ppi.values)
 
                     if not predicting:
 
@@ -204,10 +175,10 @@ class ppi_kernel():
         gamma_n = np.shape(self.gamma)[0]
 
         weighted_graph_L_array = np.array(
-            np.multiply(self.mp(np.multiply(ppi, L), gamma_n), self.gamma[:, np.newaxis, np.newaxis]))
+            np.multiply(m_p(np.multiply(ppi, L), gamma_n), self.gamma[:, np.newaxis, np.newaxis]))
 
         weighted_graph_L_prime_array = np.array(
-            np.multiply(self.mp(np.multiply(ppi, L_prime), gamma_n), self.gamma[:, np.newaxis, np.newaxis]))
+            np.multiply(m_p(np.multiply(ppi, L_prime), gamma_n), self.gamma[:, np.newaxis, np.newaxis]))
 
         sum_graph_L_array = np.sum(weighted_graph_L_array, axis=0)
 
@@ -259,9 +230,14 @@ class ppi_kernel():
 
         delta = self.ppi.values - np.abs(c_diff)
 
-        delta_std = np.std(delta, axis=1)
+        delta += 1 - np.min(delta)
 
-        alpha = np.power(alpha_factor, np.divide(1, 2 * delta_std))
+        delta_std = np.std(delta, axis=1)
+        delta_mean = np.mean(delta, axis=1)
+
+        tail_ratio = (delta_mean + delta_std) / (delta_mean - delta_std)
+
+        alpha = np.power(alpha_factor * tail_ratio, np.divide(1, 2 * delta_std))
 
         T_matrix = np.power(alpha, delta)
         np.fill_diagonal(T_matrix, 0)
@@ -291,8 +267,6 @@ class ppi_kernel():
                 self.n_proteins)  ### Consider not doing it randomly but more weight to the connected ones
 
         protein_list = [first_protein]
-
-        protein_list[0] = first_protein
 
         for i in range(1, self.n_proteins_ensemble):
 
@@ -359,22 +333,23 @@ class ppi_kernel():
         kernels = regressor_kernels[:, 0]
         D_array = regressor_kernels[:, 1]
 
+        y_range = np.max(y_training) - np.min(y_training)
+
         if len(self.D_array) > 0:
             self.D_array = np.r_[self.D_array, D_array]
         else:
             self.D_array = D_array
 
-        regressors = np.array([[[SVR(kernel='precomputed', C=j, epsilon=k, cache_size=500, shrinking=True).fit(
+        regressors = np.array([[[SVR(kernel='precomputed', C=j, epsilon=k).fit(
                                        kernels[i],
                                        y_training)
                                 for i in range(n_regressors)]
-                                for j in np.geomspace(0.01, 100, 10)]
-                               for k in np.linspace(0.01, 0.2, 5)])
+                                for j in np.linspace(int(0.7 * y_range), int(2*y_range), 5)]
+                               for k in np.linspace(0.01, 0.5, 4, endpoint=False)])
 
         return regressors
 
-    @staticmethod
-    def regressors_performance_and_selection(regressors, regressor_predict_kernel, y):
+    def regressors_performance_and_selection(self, regressors, regressor_predict_kernel, y):
 
         n_intermediate_regressors_eps, n_intermediate_regressors_C, n_regressors = np.shape(regressors)
 
@@ -383,25 +358,37 @@ class ppi_kernel():
                                 for j in range(n_intermediate_regressors_C)]
                                 for k in range(n_intermediate_regressors_eps)])
 
-        r2_score_array = np.array([[[r2_score(predictions[k, j, i, :], y)
-                                   for i in range(n_regressors)]
-                                   for j in range(n_intermediate_regressors_C)]
-                                   for k in range(n_intermediate_regressors_eps)])
+        if self.performance_metric == 'r2_score':
 
-        best_predictors_eps = np.argmax(r2_score_array, axis=0)
+            score_array = np.array([[[r2_score(predictions[k, j, i, :], y)
+                                    for i in range(n_regressors)]
+                                    for j in range(n_intermediate_regressors_C)]
+                                    for k in range(n_intermediate_regressors_eps)])
+            
+        elif self.performance_metric == 'nrmse':
+
+            score_array = np.array([[[nrmse(predictions[k, j, i, :], y, norm_factor='range')
+                                    for i in range(n_regressors)]
+                                    for j in range(n_intermediate_regressors_C)]
+                                    for k in range(n_intermediate_regressors_eps)])
+            score_array = 1 - score_array
+
+        best_predictors_eps = np.argmax(score_array, axis=0)
+
         grid_indices_eps, grid_indices_reg = np.indices(np.shape(best_predictors_eps))
-        r2_eps_dim_collapsed = r2_score_array[best_predictors_eps, grid_indices_eps, grid_indices_reg]
+        score_eps_dim_collapsed = score_array[best_predictors_eps, grid_indices_eps, grid_indices_reg]
         reg_eps_dim_collapsed = regressors[best_predictors_eps, grid_indices_eps, grid_indices_reg]
-        best_predictors_C = np.argmax(r2_eps_dim_collapsed, axis=0)
+
+        best_predictors_C = np.argmax(score_eps_dim_collapsed, axis=0)
 
         regressors = reg_eps_dim_collapsed[best_predictors_C, np.arange(n_regressors)]  # select only best predictors
 
-        r2_score_array = r2_eps_dim_collapsed[best_predictors_C, np.arange(n_regressors)]
+        score_array = score_eps_dim_collapsed[best_predictors_C, np.arange(n_regressors)]
 
-        return regressors, r2_score_array
+        return regressors, score_array
 
     def seed_and_test_biased_regressors(self, X_training, X_validation, y_training, y_validation,
-                                        n_regressors, biased_seed=[]):
+                                        n_regressors, biased_seed=[], D_section=0):
 
         '''
         Samples protein subsets and Evaluates performance of each PPI regressor on the validation set.
@@ -419,33 +406,36 @@ class ppi_kernel():
         if len(biased_seed) == 0:
             biased_seed = [False] * n_regressors
 
-        regressors_protein_list = np.array([self.sample_proteins_biased(biased_seed[i]) for i in range(n_regressors)])
+        regressors_protein_list = np.array([self.sample_proteins_biased(biased_seed[i])
+                                            for i in range(n_regressors)])
 
         regressors = self.build_regressors(X_training, y_training, regressors_protein_list)
 
         regressor_kernels_validation = self.build_kernels(X_train=X_training,
                                                           regressors_protein_list=regressors_protein_list,
-                                                          predicting=True, D_array=self.D_array, X_test=X_validation)
+                                                          predicting=True, D_array=self.D_array[D_section:],
+                                                          X_test=X_validation)
 
-        regressors, r2_score_array = self.regressors_performance_and_selection(regressors,
+        regressors, score_array = self.regressors_performance_and_selection(regressors,
                                                                                regressor_kernels_validation,
                                                                                y_validation)
 
-        return regressors, regressors_protein_list, r2_score_array
+        return regressors, regressors_protein_list, score_array
 
     def select_biased_regressors(self, X_training, y_training, X_validation, y_validation):
 
-        explorer_regressors, pioneer_proteins, exploration_scores = self.seed_and_test_biased_regressors(
-            X_training=X_training,
-            X_validation=X_validation,
-            y_training=y_training,
-            y_validation=y_validation,
-            n_regressors=int(self.n_estimators / 2))
+        selected_pioneers = []
 
-        exploration_mad = self.mad(exploration_scores)
+        while len(selected_pioneers) == 0:
 
-        selected_pioneers = np.array(np.where(exploration_scores >
-                                              np.max(exploration_scores - exploration_mad))).flatten()
+            explorer_regressors, pioneer_proteins, exploration_scores = \
+                self.seed_and_test_biased_regressors(X_training=X_training,
+                                                     X_validation=X_validation,
+                                                     y_training=y_training,
+                                                     y_validation=y_validation,
+                                                     n_regressors=int(self.n_estimators / 2))
+
+            selected_pioneers = select_best(exploration_scores, require_positive=True)
 
         selected_regressors = explorer_regressors[selected_pioneers]
 
@@ -464,25 +454,23 @@ class ppi_kernel():
 
         remainder_seeds_index = selected_pioneers[ordered_scores[:-n_seed_remainder - 1:-1]]
 
-        selected_protein_seeds = pioneer_proteins[0, np.r_[repeated_seeds_index, remainder_seeds_index]]
+        selected_protein_seeds = pioneer_proteins[np.r_[repeated_seeds_index, remainder_seeds_index], 0]
 
         natural_selection_regressors, natural_selection_proteins, \
-        natural_selection_scores = self.seed_and_test_biased_regressors(X_training=X_training,
-                                                                        X_validation=X_validation,
-                                                                        y_training=y_training,
-                                                                        y_validation=y_validation,
-                                                                        n_regressors=len(selected_protein_seeds),
-                                                                        biased_seed=selected_protein_seeds)
+            natural_selection_scores = \
+            self.seed_and_test_biased_regressors(X_training=X_training,
+                                                 X_validation=X_validation,
+                                                 y_training=y_training,
+                                                 y_validation=y_validation,
+                                                 n_regressors=len(selected_protein_seeds),
+                                                 biased_seed=selected_protein_seeds,
+                                                 D_section=len(selected_pioneers))
 
         regressors = np.r_[selected_regressors, natural_selection_regressors]
         regressors_proteins = np.r_[pioneer_proteins[selected_pioneers], natural_selection_proteins]
-        r2_scores = np.r_[exploration_scores[selected_pioneers], natural_selection_scores]
+        scores = np.r_[exploration_scores[selected_pioneers], natural_selection_scores]
 
-        cream_of_the_cream_mad = self.mad(r2_scores)  # Perform a final fitness selection of the regressors
-
-        final_selection = np.array(np.where(np.logical_and(r2_scores >
-                                            np.max(r2_scores - cream_of_the_cream_mad),
-                                                r2_scores > 0))).flatten()
+        final_selection = select_best(scores, require_positive=True)
 
         self.D_array = self.D_array[final_selection]
 
@@ -494,7 +482,7 @@ class ppi_kernel():
 
         self.n_final_estimators = len(final_selection)
 
-        return r2_scores[final_selection]
+        return scores[final_selection]
 
     def fit_ensemble_svm(self, X_train, y_train, random=False, holdout=0.2):
 
@@ -510,14 +498,19 @@ class ppi_kernel():
         if random:
 
             regressors_protein_list = [self.sample_proteins_random() for i in range(self.n_estimators)]
+
             regressors = self.build_regressors(X_training=X_training, y_training=y_training,
                                                regressors_protein_list=regressors_protein_list)
-            kernel_validation = self.build_kernels(X_train=X_training, regressors_protein_list=regressors_protein_list,
-                                                  predicting=True, D_array=self.D_array, X_test=X_validation)
 
-            regressors, r2_score_array = self.regressors_performance_and_selection(regressors=regressors,
-                                                                                   regressor_predict_kernel=kernel_validation,
-                                                                                   y=y_validation)
+            kernel_validation = self.build_kernels(X_train=X_training,
+                                                   regressors_protein_list=regressors_protein_list,
+                                                   predicting=True, D_array=self.D_array,
+                                                   X_test=X_validation)
+
+            regressors, score_array = \
+                self.regressors_performance_and_selection(regressors=regressors,
+                                                          regressor_predict_kernel=kernel_validation,
+                                                          y=y_validation)
 
             self.regressors = regressors
             self.regressors_protein_list = regressors_protein_list
@@ -526,18 +519,20 @@ class ppi_kernel():
 
         else:
 
-            r2_score_array = self.select_biased_regressors(X_training=X_training, y_training=y_training,
-                                                           X_validation=X_validation, y_validation=y_validation)
+            score_array = self.select_biased_regressors(X_training=X_training,
+                                                        y_training=y_training,
+                                                        X_validation=X_validation,
+                                                        y_validation=y_validation)
 
-        min_corrected_r2 = r2_score_array - np.min(r2_score_array) + 1
-        range_r2 = np.max(min_corrected_r2) - np.min(min_corrected_r2)
-        max_min_factor_r2 = np.max(min_corrected_r2) / np.min(min_corrected_r2)
-        k = 10
-        w = (k * range_r2) ** (1/max_min_factor_r2)
-        r2_score_scaled = np.power(w, min_corrected_r2)
-        r2_score_array = r2_score_scaled / np.sum(r2_score_scaled)
+        min_corrected_score = score_array - np.min(score_array) + 1
+        range_score = np.max(min_corrected_score) - np.min(min_corrected_score)
+        max_min_factor_r2 = np.max(min_corrected_score) / np.min(min_corrected_score)
+        k = 2
+        w = (k * max_min_factor_r2) ** (1/range_score)
+        score_scaled = np.power(w, min_corrected_score)
+        score_array = score_scaled / np.sum(score_scaled)
 
-        self.ensemble_weights = r2_score_array
+        self.ensemble_weights = score_array
 
     def ensemble_predict(self, X_test):
 
@@ -545,9 +540,11 @@ class ppi_kernel():
                                                regressors_protein_list=self.regressors_protein_list,
                                                predicting=True, X_test=X_test, D_array=self.D_array)
 
-        predictions = np.array([self.regressors[i].predict(regressor_kernels[i]) for i in range(self.n_final_estimators)])
+        predictions = np.array([self.regressors[i].predict(regressor_kernels[i])
+                                for i in range(self.n_final_estimators)])
+
+        np.save('individual_en_predictions', predictions)
 
         prediction = np.sum(predictions * np.array(self.ensemble_weights)[:, np.newaxis], axis=0)
 
         return prediction
-

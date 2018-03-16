@@ -1,7 +1,10 @@
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.neighbors import DistanceMetric
 import numpy as np
+from Pacific_analysis.utils import create_artificial_samples
 
 
 class NN_imputer(BaseEstimator, TransformerMixin):
@@ -97,6 +100,52 @@ class DataNormalizer(BaseEstimator, TransformerMixin):
             norm_data = (X - data_min) / (data_max - data_min)
 
             return norm_data
+
+
+class SubstituteBelowDetection(BaseEstimator, TransformerMixin):
+
+    def __init__(self, std_percentage=0.01, repeats=5, lower_percentile=10):
+
+        self.std_percentage = std_percentage
+        self.repeats = repeats
+        self.lower_percentile = lower_percentile
+
+    def fit(self, X, y=None):
+
+        return self
+
+    def transform(self, X, y):
+
+        above_detection = y > 0
+
+        X_above_detection = X[above_detection, :]
+        y_above_detection = y[above_detection]
+
+        low_mid_percentile = np.percentile(y_above_detection, self.lower_percentile)
+
+        low_mid_X = X_above_detection[y_above_detection < low_mid_percentile, :]
+
+        low_mid_y = y_above_detection[y_above_detection < low_mid_percentile]
+
+        X_noise, y_noise = create_artificial_samples(low_mid_X, low_mid_y, repeats=self.repeats,
+                                                     std_percentage=self.std_percentage)
+
+        param_grid = {"n_estimators": [120, 800, 1200],
+                      "max_depth": [5, 15, 30, None],
+                      "max_features": ["auto", "sqrt", "log2"],
+                      "min_samples_leaf": [1, 5, 10],
+                      "min_samples_split": [2, 10, 100],
+                      "random_state": [512],
+                      "bootstrap": [True]}
+        trees = ExtraTreesRegressor()
+        skf = KFold(n_splits=2)
+        random_search = GridSearchCV(trees, param_grid, scoring='r2', cv=skf, n_jobs=-1, verbose=1)
+
+        random_search.fit(X_noise, y_noise)
+
+        y[y == 0] = random_search.predict(X[y == 0])
+
+        return X
 
 
 def pipeline_w_norm(X, columns_to_drop):

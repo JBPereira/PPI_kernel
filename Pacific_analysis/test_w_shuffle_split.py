@@ -15,7 +15,8 @@ using Shuffle Split and R2_score
 def test_w_shuffle_split(X, y, ppi):
     
     ppi_kernel_ = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5)
-    svr_en_ppi = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=10, n_estimators=20, alpha_factor=3, n_proteins_ensemble=30)
+    svr_en_ppi = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=10, n_estimators=20,
+                            alpha_factor=3, n_proteins_ensemble=int(np.sqrt(np.shape(X)[1])))
     svr_en_ppi_random = ppi_kernel(ppi=ppi, gamma_n=4, gamma_alpha=5, n_estimators=3, alpha_factor=3)
 
     test_size = np.linspace(0.55, 0.15, 10)
